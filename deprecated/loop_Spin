@@ -1,0 +1,56 @@
+#!/bin/bash
+# builds condor batch file for running Spin.C on .phiset/*.root
+# and executes it
+
+if [ $# -eq 4 ]; then
+  phi=$1
+  eta=$2
+  pt=$3
+  en=$4
+elif [ $# -ge 1 ]; then
+  echo "usage: $0 [phi bins] [eta bins] [pt bins] [en bins]"
+  echo " enter either all four arguments or none to use defaults"
+  exit 1
+else
+  phi=16
+  eta=1
+  pt=3
+  en=3
+fi
+
+
+job="spin.bat"
+> $job
+
+echo "building batch file..."
+echo "Executable = `which root.exe`" >> $job
+echo "Universe = vanilla" >> $job
+echo "notification = never" >> $job
+echo "getenv = True" >> $job
+echo '+Experiment = "star"' >> $job
+echo '+Job_Type = "cas"' >> $job
+echo "" >> $job
+
+log="logfiles"
+wd=$(pwd)
+pushd phiset > /dev/null
+ls phi*.root > $wd/filelist
+popd > /dev/null
+
+#cat filelist
+cnt=1
+
+while read line; do
+  echo "Arguments = -b -q Spin.C(\\\"${line}\\\",$phi,$eta,$pt,$en)" >> $job
+  echo "Log    = ${log}/Spin${cnt}.log" >> $job
+  echo "Output = ${log}/Spin${cnt}.out" >> $job
+  echo "Error  = ${log}/Spin${cnt}.err" >> $job
+  echo "Queue" >> $job
+  echo "" >> $job
+  let cnt++
+done < filelist
+
+njobs=$(grep -c . filelist)
+rm filelist
+echo "Submitting $njobs jobs to condor"
+condor_submit $job

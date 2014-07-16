@@ -1,0 +1,6 @@
+#!/bin/bash
+source env_bins.sh
+if [ ! -f phiset/all.root ]; then
+   root -b -q 'toa_add.C()'
+fi
+root -b -q 'Asym.C()'

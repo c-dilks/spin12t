@@ -1,0 +1,14 @@
+#!/bin/bash
+# link some relative luminosity and polarimetry root files 
+
+scaler_dir="../scalers"
+polar_dir="../polar"
+
+for ff in {counts,rtree}; do
+  touch $ff.root
+  rm $ff.root
+  ln -s ../scalers/$ff.root ./
+done
+
+touch pol.root; rm pol.root
+ln -s $polar_dir/pol.root ./

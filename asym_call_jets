@@ -1,0 +1,19 @@
+#!/bin/bash
+# runs double and single spin analyses, and draws output
+root -b -q -l 'Asym3.C('\"sph\"','\"all\"')'
+root -b -q -l 'DrawThree.C('\"sph\"')'
+mv -v spin{,_sph}.root
+mv -v three{,_sph}.png
+mv -v printout{,_sph}.dat
+
+root -b -q -l 'Asym3.C('\"pi0\"','\"all\"')'
+root -b -q -l 'DrawThree.C('\"pi0\"')'
+mv -v spin{,_pi0}.root
+mv -v three{,_pi0}.png
+mv -v printout{,_pi0}.dat
+
+root -b -q -l 'Asym3.C('\"thr\"','\"all\"')'
+root -b -q -l 'DrawThree.C('\"thr\"')'
+mv -v spin{,_thr}.root
+mv -v three{,_thr}.png
+mv -v printout{,_thr}.dat

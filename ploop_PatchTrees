@@ -1,0 +1,31 @@
+#!/bin/bash
+# uses core looper to run PatchTrees2.C on all files, instead of condor
+
+
+# determine number of cores
+ncores=$(grep -c processor /proc/cpuinfo)
+echo ncores=$ncores
+
+
+
+log="logfiles"
+wd=$(pwd)
+pushd redset > /dev/null
+ls Red*.root > $wd/filelist
+popd > /dev/null
+
+#cat filelist
+cnt=1
+
+while read line; do
+  logg=$(echo $line | sed 's/RedOutputset//g' | sed 's/root/log/g')
+  if [ $cnt -le $ncores ]; then 
+    root -b -q 'PatchTrees2.C('\"$line\"')' >& $log/Patch$logg &
+    echo "processing $line"
+    let cnt++
+  else
+    wait
+    cnt=1
+  fi
+done < filelist
+rm filelist

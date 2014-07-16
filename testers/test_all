@@ -1,0 +1,19 @@
+#!/bin/bash
+pushd ../ > /dev/null
+source env_bins.sh
+popd > /dev/null
+> out_rundata
+> out_rtree
+> out_pol
+root -b -q TestRunData.C
+root -b -q TestPol.C
+root -b -q TestRTree.C
+cat out_rundata | cut -d" " -f1-7 > out_rundata_rtree
+cat out_rundata | cut -d" " -f3,8-11 | uniq > out_rundata_pol
+l="-"; for i in {1..50}; do l="$l-"; done
+echo $l
+echo "diff out_{rundata_rtree,rtree}"
+diff out_{rundata_rtree,rtree}
+echo $l
+echo "diff out_{rundata_pol,pol}"
+diff out_{rundata_pol,pol}

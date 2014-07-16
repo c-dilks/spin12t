@@ -1,0 +1,52 @@
+#!/bin/bash
+# prints pdf files from spin.root using condor,
+# since printing is slow
+
+source env_bins.sh
+phi=$PHI
+eta=$ETA
+pt=$PT
+en=$EN
+
+job="printer.bat"
+> $job
+
+echo "building batch file..."
+echo "Executable = `which root`" >> $job
+echo "Universe = vanilla" >> $job
+echo "notification = never" >> $job
+echo "getenv = True" >> $job
+echo '+Experiment = "star"' >> $job
+echo '+Job_Type = "cas"' >> $job
+echo "" >> $job
+
+log="logfiles"
+cnt=1
+
+if [ $eta -gt 0 ]; then
+  let eta--
+fi
+if [ $pt -gt 0 ]; then
+  let pt--
+fi
+if [ $en -gt 0 ]; then
+  let en--
+fi
+
+for g in $(seq 0 1 $eta); do
+  for p in $(seq 0 1 $pt); do
+    for e in $(seq 0 1 $en); do
+      #echo $g $p $e
+      echo "Arguments = -b -q PrintPDFs.C($g,$p,$e)" >> $job
+      echo "Log    = ${log}/Print${cnt}.log" >> $job
+      echo "Output = ${log}/Print${cnt}.out" >> $job
+      echo "Error  = ${log}/Print${cnt}.err" >> $job
+      echo "Queue" >> $job
+      echo "" >> $job
+      let cnt++
+    done
+  done
+done
+
+rm pdfset/asym*.pdf
+condor_submit $job

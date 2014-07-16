@@ -1,0 +1,101 @@
+// prints pdfs to "pdfset" from asymmetry calculation
+
+void PrintPDFs(const char * filename="spin.root")
+{
+  TFile * infile = new TFile(filename,"READ");
+  
+  // set bins
+  Int_t phi_bins0, eta_bins0, pt_bins0, en_bins0;
+  gROOT->ProcessLine(".! source env_bins.sh");
+  sscanf(gSystem->Getenv("PHI"),"%d",&phi_bins0);
+  sscanf(gSystem->Getenv("ETA"),"%d",&eta_bins0);
+  sscanf(gSystem->Getenv("PT"),"%d",&pt_bins0);
+  sscanf(gSystem->Getenv("EN"),"%d",&en_bins0);
+  const Double_t pi=3.1415;
+  const Double_t phi_bins=phi_bins0; 
+  const Double_t eta_bins=eta_bins0;
+    const Double_t eta_low=2.6; const Double_t eta_high=4.2;
+  const Double_t pt_bins=pt_bins0; 
+    const Double_t pt_low=0; const Double_t pt_high=10;
+  const Double_t en_bins=en_bins0; 
+    const Double_t en_low=0; const Double_t en_high=100;
+
+  
+  // read TObjArrays
+  TObjArray * phi_dist_arr[4][eta_bins][pt_bins][en_bins];
+  TObjArray * phi_dist_arr_P[4][eta_bins][pt_bins][en_bins];
+  TObjArray * asym_arr[eta_bins][pt_bins][en_bins];
+  char phi_dist_arr_n[4][eta_bins][pt_bins][en_bins][64];
+  char phi_dist_arr_P_n[4][eta_bins][pt_bins][en_bins][64];
+  char asym_arr_n[eta_bins][pt_bins][en_bins][64];
+  Int_t NRUNS_tmp;
+  for(Int_t e=0; e<en_bins; e++)
+  {
+    for(Int_t g=0; g<eta_bins; g++)
+    {
+      for(Int_t p=0; p<pt_bins; p++)
+      {
+        sprintf(asym_arr_n[g][p][e],"asym_g%d_p%d_e%d",g,p,e);
+        asym_arr[g][p][e] = (TObjArray*) infile->Get(asym_arr_n[g][p][e]);
+        for(Int_t s=0; s<4; s++)
+        {
+          sprintf(phi_dist_arr_n[s][g][p][e],"phi_dist_s%d_g%d_p%d_e%d",s,g,p,e);
+          sprintf(phi_dist_arr_P_n[s][g][p][e],"phi_dist_P_s%d_g%d_p%d_e%d",s,g,p,e);
+          phi_dist_arr[s][g][p][e] = (TObjArray*) infile->Get(phi_dist_arr_n[s][g][p][e]);
+          phi_dist_arr_P[s][g][p][e] = (TObjArray*) infile->Get(phi_dist_arr_P_n[s][g][p][e]);
+          printf("phi_dist_arr[%d][%d][%d][%d] @ %p\n",s,g,p,e,(void*)phi_dist_arr[s][g][p][e]);
+          if(s==0 && g==0 && p==0 && e==0)
+          {
+            NRUNS_tmp=phi_dist_arr[s][g][p][e]->GetEntries();
+          }
+          else
+          {
+            if(phi_dist_arr[s][g][p][e]->GetEntries() != NRUNS_tmp ||
+               phi_dist_arr_P[s][g][p][e]->GetEntries() != NRUNS_tmp)
+            {
+              fprintf(stderr,"ERROR: TObjArrays have different sizes\n");
+              return;
+            };
+          };
+        };
+      };
+    };
+  };
+  const Int_t NRUNS = NRUNS_tmp;
+  printf("NRUNS=%d\n",NRUNS);
+
+
+  // print pdfs
+  char pdfname[eta_bins][pt_bins][en_bins][256];
+  char pdfname_L[eta_bins][pt_bins][en_bins][256];
+  char pdfname_R[eta_bins][pt_bins][en_bins][256];
+  TCanvas * canv = new TCanvas("canv","canv",2000,1500);
+  gStyle->SetOptFit(1);
+  for(Int_t g=0; g<eta_bins; g++)
+  {
+    for(Int_t p=0; p<pt_bins; p++)
+    {
+      for(Int_t e=0; e<en_bins; e++)
+      {
+        sprintf(pdfname[g][p][e],"pdfset/asym_g%d_p%d_e%d.pdf",g,p,e);
+        sprintf(pdfname_L[g][p][e],"pdfset/asym_g%d_p%d_e%d.pdf(",g,p,e);
+        sprintf(pdfname_R[g][p][e],"pdfset/asym_g%d_p%d_e%d.pdf)",g,p,e);
+        for(Int_t r=0; r<NRUNS; r++)
+        {
+          canv->Clear();
+          canv->Divide(3,2);
+          canv->cd(1); phi_dist_arr[0][g][p][e]->At(r)->Draw();
+          canv->cd(2); phi_dist_arr[3][g][p][e]->At(r)->Draw();
+          canv->cd(4); phi_dist_arr[1][g][p][e]->At(r)->Draw();
+          canv->cd(5); phi_dist_arr[2][g][p][e]->At(r)->Draw();
+          canv->cd(6); asym_arr[g][p][e]->At(r)->Draw();
+          if(r==0) canv->Print(pdfname_L[g][p][e],"pdf");
+          else if(r+1==NRUNS) canv->Print(pdfname_R[g][p][e],"pdf");
+          else canv->Print(pdfname[g][p][e],"pdf");
+        };
+      };
+    };
+  };
+};
+  
+

@@ -1,0 +1,78 @@
+// draws A_LL, blue A_L, yellow A_L on one plot
+
+void DrawThree(const char * filetype="png",
+               const char * A_LL_file="spin_sum.root",
+               const char * A_Lb_file="spin_sb_sum.root",
+               const char * A_Ly_file="spin_sy_sum.root")
+{
+  TFile * A_LL_tfile = new TFile(A_LL_file,"READ");
+  TFile * A_Lb_tfile = new TFile(A_Lb_file,"READ");
+  TFile * A_Ly_tfile = new TFile(A_Ly_file,"READ");
+
+  Int_t phi_bins0, eta_bins0, pt_bins0, en_bins0;
+  if(gSystem->Getenv("PHI_BINS")==NULL){fprintf(stderr,"ERROR: source env vars\n"); return;};
+  sscanf(gSystem->Getenv("PHI_BINS"),"%d",&phi_bins0);
+  sscanf(gSystem->Getenv("ETA_BINS"),"%d",&eta_bins0);
+  sscanf(gSystem->Getenv("PT_BINS"),"%d",&pt_bins0);
+  sscanf(gSystem->Getenv("EN_BINS"),"%d",&en_bins0);
+
+  char plotname[32];
+  char plottitle[128];
+  if(pt_bins0==1 && en_bins0!=1) 
+  {
+    strcpy(plotname,"en_dep_p0");
+    strcpy(plottitle,"Helicity Asymmetry Comparison vs. E_{#gamma#gamma}");
+  }
+  else if(pt_bins0!=1 && en_bins0==1) 
+  {
+    strcpy(plotname,"pt_dep_e0");
+    strcpy(plottitle,"Helicity Asymmetry Comparison vs. p_{#perp}");
+  }
+  else if(pt_bins0==1 && en_bins0==1)
+  {
+    strcpy(plotname,"pt_dep_e0");
+    strcpy(plottitle,"Helicity Asymmetry Comparison -- single bin");
+  };
+
+
+  TGraphErrors * A_LL_gr = (TGraphErrors*) A_LL_tfile->Get(plotname);
+  TGraphErrors * A_Lb_gr = (TGraphErrors*) A_Lb_tfile->Get(plotname);
+  TGraphErrors * A_Ly_gr = (TGraphErrors*) A_Ly_tfile->Get(plotname);
+
+  //A_LL_gr->Fit("pol0","","",8,15);
+  //gStyle->SetOptFit(1);
+
+  TMultiGraph * mg = new TMultiGraph();
+  A_LL_gr->SetMarkerColor(kRed);
+  A_Lb_gr->SetMarkerColor(kBlue);
+  A_Ly_gr->SetMarkerColor(kOrange);
+  A_LL_gr->SetLineColor(kRed);
+  A_Lb_gr->SetLineColor(kBlue);
+  A_Ly_gr->SetLineColor(kOrange);
+
+
+
+  mg->SetTitle(plottitle);
+  //->GetXaxis()->SetTitle("p_{T} (Gev/c)");
+  //mg->GetYaxis()->SetTitle("Asymmetry");
+
+  TLegend * leg = new TLegend(0.1,0.9,0.3,0.7);
+  leg->AddEntry(A_LL_gr,"A_{LL}","EP");
+  leg->AddEntry(A_Lb_gr,"A_{L} (blue)","EP");
+  leg->AddEntry(A_Ly_gr,"A_{L} (yellow)","EP");
+  
+  TCanvas * cc = new TCanvas("cc","cc",1200,1000);
+  cc->SetGrid(1,1);
+  mg->Add(A_Lb_gr);
+  mg->Add(A_Ly_gr);
+  mg->Add(A_LL_gr);
+  mg->Draw("ape");
+  //mg->GetXaxis()->SetRangeUser(0,6);
+  mg->GetYaxis()->SetRangeUser(-0.08,0.08);
+  if(en_bins0==1 && pt_bins0==1) mg->GetYaxis()->SetRangeUser(-0.004,0.004);
+  //leg->Draw();
+
+  char print_file[32];
+  sprintf(print_file,"three.%s",filetype);
+  cc->Print(print_file,filetype);
+}

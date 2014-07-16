@@ -1,0 +1,29 @@
+#!/bin/bash
+# updates ../spin_release directory for creating tarballs of analysis code
+
+spin_release_dir=../spin_release
+
+# clear spin_release directory
+echo "WARNING!!!  rm'ing $spin_release_dir in 5 seconds (^C to halt)"
+sleep 5
+mkdir -p $spin_release_dir
+rm -r $spin_release_dir
+mkdir -p $spin_release_dir
+
+# copy top level executables
+find . -maxdepth 1 -perm -u=x -type f > executables
+while read line; do cp -v $line $spin_release_dir; done < executables
+rm executables
+
+# copy rootfiles (following symlinks)
+cp -rvH *.root $spin_release_dir
+
+# copy documentation
+cp -v doc* $spin_release_dir
+
+# copy env vars
+cp -v env_bins.sh $spin_release_dir
+
+# copy source code and testers
+cp -rv src $spin_release_dir
+cp -rv testers $spin_release_dir

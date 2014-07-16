@@ -1,0 +1,47 @@
+#!/bin/bash
+# builds condor batch file for running EtaDists3.C on .redset/*.root
+# and executes it
+
+
+echo "removing etaset/*.root in 3 seconds..."
+sleep 3
+rm -r etaset/*.root
+
+
+job="eta.bat"
+> $job
+
+echo "building batch file..."
+echo "Executable = `which root`" >> $job
+echo "Universe = vanilla" >> $job
+echo "notification = never" >> $job
+echo "getenv = True" >> $job
+echo '+Experiment = "star"' >> $job
+echo '+Job_Type = "cas"' >> $job
+echo "" >> $job
+
+log="logfiles"
+wd=$(pwd)
+pushd redset > /dev/null
+ls Red*.root > $wd/filelist
+popd > /dev/null
+
+#cat filelist
+cnt=1
+
+while read line; do
+  echo "Arguments = -b -q EtaDists3.C(\\\"${line}\\\")" >> $job
+  echo "Log    = ${log}/Eta${cnt}.log" >> $job
+  echo "Output = ${log}/Eta${cnt}.out" >> $job
+  echo "Error  = ${log}/Eta${cnt}.err" >> $job
+  echo "Queue" >> $job
+  echo "" >> $job
+  let cnt++
+done < filelist
+
+njobs=$(grep -c . filelist)
+rm filelist
+echo "Submitting $njobs jobs to condor"
+condor_submit $job
+touch etaset/all.root
+rm etaset/all.root

@@ -1,0 +1,26 @@
+#!/bin/bash
+# runs double and single spin analyses, and draws output
+root -b -q Asym_sum.C
+root -b -q Asym_sb_sum.C
+root -b -q Asym_sy_sum.C
+root -b -q DrawThree.C
+
+echo ""
+echo "<><><><><><><><><><>"
+echo ""
+if [ $# -gt 0 ]; then
+  mv spin_sum{,_$1}.root
+  mv spin_sb_sum{,_$1}.root
+  mv spin_sy_sum{,_$1}.root
+  mv three{,_$1}.png
+  echo spin_sum_$1.root produced
+  echo spin_sb_sum_$1.root produced
+  echo spin_sy_sum_$1.root produced
+  echo three_$1.png produced
+else
+  echo spin_sum.root produced
+  echo spin_sb_sum.root produced
+  echo spin_sy_sum.root produced
+  echo three.png produced
+fi
+

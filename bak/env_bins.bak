@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# SOURCE THIS FILE WHILE IN SPIN DIRECTORY
+export SPINDIR=$(pwd)
+
+export PHI=1
+export ETA=1
+export PT=1
+export EN=1

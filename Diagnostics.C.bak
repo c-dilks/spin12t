@@ -1,0 +1,131 @@
+// shows the dependence of various kinematics on geometry
+// e.g., pt vs. eta
+// --> outputs all plots to diag.pdf
+
+void Diagnostics()
+{
+  const Int_t NBINS=50; // NUMBER OF BINS
+
+  // open chain
+  TChain * tr = new TChain("str");
+  tr->Add("./redset/Red*.root");
+  Float_t E12,Pt,Eta,Phi,M12,Z,b_pol,y_pol;
+  Bool_t kicked,isConsistent;
+  Int_t TrigBits;
+  Float_t N12;
+
+  Float_t E12_min,Pt_min,Eta_min,Phi_min;
+  Float_t E12_max,Pt_max,Eta_max,Phi_max;
+  E12_min=Pt_min=Eta_min=Phi_min=1000;
+  E12_max=Pt_max=Eta_max=Phi_max=0;
+
+  str->SetBranchAddress("E12",&E12);
+  str->SetBranchAddress("Pt",&Pt);
+  str->SetBranchAddress("Eta",&Eta);
+  str->SetBranchAddress("Phi",&Phi);
+  str->SetBranchAddress("M12",&M12);
+  str->SetBranchAddress("Z",&Z);
+  str->SetBranchAddress("b_pol",&b_pol);
+  str->SetBranchAddress("y_pol",&y_pol);
+  str->SetBranchAddress("kicked",&kicked);
+  str->SetBranchAddress("isConsistent",&isConsistent);
+  str->SetBranchAddress("TrigBits",&TrigBits);
+  str->SetBranchAddress("N12",&N12);
+
+  
+  // get kinematics ranges for eta,Pt,Phi
+  for(Int_t i=0; i<tr->GetEntries(); i++)
+  {
+    tr->GetEntry(i);
+    if(fabs(M12-0.135)<0.1 && Z<0.8 && (TrigBits&0x200) && N12==2 && kicked==0 && isConsistent==1 && b_pol*y_pol!=0)
+    {
+      E12_min = (E12 < E12_min) ? E12:E12_min;
+      Pt_min  = (Pt  < Pt_min)  ? Pt:Pt_min;
+      Eta_min = (Eta < Eta_min) ? Eta:Eta_min;
+      Phi_min = (Phi < Phi_min) ? Phi:Phi_min;
+
+      E12_max = (E12 > E12_max) ? E12:E12_max;
+      Pt_max  = (Pt  > Pt_max)  ? Pt:Pt_max;
+      Eta_max = (Eta > Eta_max) ? Eta:Eta_max;
+      Phi_max = (Phi > Phi_max) ? Phi:Phi_max;
+    };
+  };
+
+  printf("E12 range: %f -- %f\n",E12_min,E12_max);
+  printf("Pt range: %f -- %f\n",Pt_min,Pt_max);
+  printf("Eta range: %f -- %f\n",Eta_min,Eta_max);
+  printf("Phi range: %f -- %f\n",Phi_min,Phi_max);
+
+  TH2F * pt_vs_eta = new TH2F("pt_vs_eta","p_{T} vs. #eta",NBINS,Eta_min,Eta_max,NBINS,0,Pt_max);
+  TH2F * en_vs_eta = new TH2F("en_vs_eta","E_{#gamma#gamma} vs. #eta",NBINS,Eta_min,Eta_max,NBINS,0,E12_max);
+  TH2F * z_vs_eta = new TH2F("z_vs_eta","Z vs. #eta",NBINS,Eta_min,Eta_max,NBINS,0,1);
+  TH2F * pt_vs_phi = new TH2F("pt_vs_phi","p_{T} vs. #phi",NBINS,-3.14,3.14,NBINS,0,Pt_max);
+  TH2F * en_vs_phi = new TH2F("en_vs_phi","E_{#gamma#gamma} vs. #phi",NBINS,-3.14,3.14,NBINS,0,E12_max);
+  TH2F * z_vs_phi = new TH2F("z_vs_phi","Z vs. #phi",NBINS,-3.14,3.14,NBINS,0,1);
+  TH2F * eta_vs_phi = new TH2F("eta_vs_phi","#eta vs. #phi",NBINS,-3.14,3.14,NBINS,Eta_min,Eta_max);
+  TH2F * en_vs_pt = new TH2F("en_vs_pt","E_{#gamma#gamma} vs. p_{T}",NBINS,0,Pt_max,NBINS,0,E12_max);
+
+  TH1F * mass_dist = new TH1F("mass_dist","M_{#gamma#gamma} distribution (no #pi^{0} cut)",NBINS,0,0.3);
+  TH1F * z_dist = new TH1F("z_dist","Z distribution (no #pi^{0} cut)",NBINS,0,1);
+  TH1F * trig_dist = new TH1F("trig_dist","TrigBits distribution (no #pi^{0} cut)",NBINS,7500,33500);
+
+  char cut[256];
+  sprintf(cut,"abs(M12-0.135)<0.1 && Z<0.8 && (TrigBits&0x200) && kicked==0 && isConsistent==1 && b_pol*y_pol!=0");
+  for(Int_t x=0; x<tr->GetEntries(); x++)
+  {
+    tr->GetEntry(x);
+    if( (TrigBits&0x200) &&
+        fabs(N12-2)<0.01 &&
+        Z<0.8 &&
+        fabs(M12-0.135)<0.1 &&
+        kicked==0 &&
+        isConsistent==1 &&
+        b_pol>0 &&
+        y_pol>0)
+    {
+      mass_dist->Fill(M12);
+      z_dist->Fill(Z);
+      trig_dist->Fill(TrigBits);
+      pt_vs_eta->Fill(Eta,Pt);
+      en_vs_eta->Fill(Eta,E12);
+      z_vs_eta->Fill(Eta,Z);
+      pt_vs_phi->Fill(Phi,Pt);
+      en_vs_phi->Fill(Phi,E12);
+      z_vs_phi->Fill(Phi,Z);
+      eta_vs_phi->Fill(Phi,Eta);
+      en_vs_pt->Fill(Pt,E12);
+
+  tr->Project("eta_vs_phi","Eta:Phi",cut);
+  tr->Project("en_vs_pt","E12:Pt",cut);
+
+  gStyle->SetOptStat(0);
+
+  TCanvas * cc0 = new TCanvas("cc0","cc0",1000,1200);
+  cc0->Divide(1,3);
+  cc0->cd(1); mass_dist->Draw();
+  cc0->cd(2); z_dist->Draw();
+  cc0->cd(3); cc0->GetPad(3)->SetLogy(); trig_dist->Draw();
+
+
+  TCanvas * cc1 = new TCanvas("cc1","cc1",1000,1200);
+  cc1->Divide(2,3);
+  cc1->cd(1); pt_vs_eta->Draw("colz");
+  cc1->cd(2); pt_vs_phi->Draw("colz");
+  cc1->cd(3); en_vs_eta->Draw("colz");
+  cc1->cd(4); en_vs_phi->Draw("colz");
+  cc1->cd(5); z_vs_eta->Draw("colz");
+  cc1->cd(6); z_vs_phi->Draw("colz");
+
+  TCanvas * cc2 = new TCanvas("cc2","cc2",1000,1200);
+  cc2->Divide(2,3);
+  cc2->cd(1); eta_vs_phi->Draw("colz");
+  cc2->cd(2); en_vs_pt->Draw("colz");
+
+
+  cc0->Print("diag.pdf(","pdf");
+  cc1->Print("diag.pdf","pdf");
+  cc2->Print("diag.pdf)","pdf");
+  printf("diag.pdf diagnostic kinematics file produced\n");
+
+}
+  

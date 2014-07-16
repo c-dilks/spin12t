@@ -1,0 +1,16 @@
+*.png
+*.dat
+*.root
+*.bat
+*.swp
+logfiles/*
+patchset/*
+pdfset/*
+phiset/*
+pi0cntset/*
+study_fill/*
+study_runs/*
+chisq
+corrupted
+src/*.so
+src/*Dict*

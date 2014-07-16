@@ -1,0 +1,264 @@
+// reads TwoTr from Output file and extracts
+// only the essential subset for spin analysis,
+// adding on the relative luminosities for each run
+// -- see code under comment "reduction cut"
+//    -- (e.g., N12==2 events with  specific E and Pt range)
+// -- writes output to redset/
+//
+// 145ka
+
+void ReduceData(const char * filename="Outputset145ka.root",
+                const char * dirname="../../Output")
+{
+  // open root files and hash run numbers
+  TFile * rtree_file = new TFile("rtree.root","READ");
+  TFile * count_file = new TFile("counts.root","READ");
+  TFile * polar_file = new TFile("pol.root","READ");
+
+  TTree * rtree = (TTree*) rtree_file->Get("rellum");
+  TTree * ctree = (TTree*) count_file->Get("sca");
+  TTree * ptree = (TTree*) polar_file->Get("pol");
+
+  Int_t index,runnum,fill;
+  Float_t R3_bbc,R3_zdc,R3_vpd;
+  Bool_t isConsistent;
+  rtree->SetBranchAddress("i",&index);
+  rtree->SetBranchAddress("runnum",&runnum);
+  rtree->SetBranchAddress("fill",&fill);
+  rtree->SetBranchAddress("R3_bbc_mean",&R3_bbc); // currently using means for rellum
+  rtree->SetBranchAddress("R3_zdc_mean",&R3_zdc);
+  rtree->SetBranchAddress("R3_vpd_mean",&R3_vpd);
+  rtree->SetBranchAddress("isConsistent",&isConsistent); // true if detectors agree well for rellum 
+
+  
+  // build array map
+  // -- allows one to obtain blue and yellow spin + kicked bunch status
+  //    for given run index and bXing no.
+  printf("building array map...\n");
+  Int_t RUNS_tmp = ctree->GetMaximum("i");
+  const Int_t RUNS = RUNS_tmp;
+  const Int_t BXS = 120;
+  const Int_t CONTENT = 3;
+
+  Int_t array_map[RUNS][BXS][CONTENT]; // [run index-1] [bXing] [content number "j"]
+  // "j" definition:
+  //  j == 0 --> blue spin
+  //  j == 1 --> yell spin
+  //  j == 2 --> kicked (typecasted to int)
+
+  Int_t index_c,bx,blue,yell;
+  Bool_t kicked;
+  ctree->SetBranchAddress("i",&index_c);
+  ctree->SetBranchAddress("bx",&bx);
+  ctree->SetBranchAddress("blue",&blue);
+  ctree->SetBranchAddress("yell",&yell);
+  ctree->SetBranchAddress("kicked",&kicked);
+  for(Int_t q=0; q<ctree->GetEntries(); q++)
+  {
+    ctree->GetEntry(q);
+    array_map[index_c-1][bx][0] = blue;
+    array_map[index_c-1][bx][1] = yell;
+    if(kicked) array_map[index_c-1][bx][2] = 1;
+    else array_map[index_c-1][bx][2] = 0;
+  };
+
+
+
+  // hash LUT
+  // -- let rellum ttree be viewed as a hash table indexed by tree entry number
+  // -- run index - 1 = rellum tree entry number is the hash key, which is obtained
+  //    from a given run number via a linear search of the run number in 
+  //    look up table "runnum_array"
+  // -- code checks to make sure rellum tree index == run index - 1
+  //    and fill hash key LUT "runnum_array" (index of array = run index - 1)
+  Int_t RUNS_tmp = rtree->GetEntries();
+  const Int_t RUNS = RUNS_tmp;
+  Int_t runnum_array[RUNS];
+  Int_t runnum_tmp=0;
+  for(Int_t i=0; i<rtree->GetEntries(); i++)
+  {
+    rtree->GetEntry(i);
+
+    if(runnum_tmp == runnum)
+    {
+      fprintf(stderr,"ERROR: duplicated run number\n");
+      return;
+    }
+    else runnum_tmp = runnum;
+
+    if(i != index-1)
+    {
+      fprintf(stderr,"ERROR: rdat tree index != run index -1; hashing won't work!\n");
+      return;
+    }
+    else runnum_array[i] = runnum;
+    printf("runnum_array[%d] = %d\n",i,runnum_array[i]);
+  };
+  printf("rdat tree ok\n");
+
+
+  // build polarimetry LUT (b_pol_arr[index], where index=fill-17000)
+  Int_t p_fill;
+  Float_t b_pol,y_pol;
+  ptree->SetBranchAddress("fill",&p_fill);
+  ptree->SetBranchAddress("b_pol",&b_pol);
+  ptree->SetBranchAddress("y_pol",&y_pol);
+  Float_t b_pol_arr[1000]; // array index = fill - 17000
+  Float_t y_pol_arr[1000];
+  for(Int_t ii=0; ii<1000; ii++)
+  {
+    b_pol_arr[ii] = 0;
+    y_pol_arr[ii] = 0;
+  };
+  for(Int_t ii=0; ii<ptree->GetEntries(); ii++)
+  {
+    ptree->GetEntry(ii);
+    b_pol_arr[p_fill-17000] = b_pol;
+    y_pol_arr[p_fill-17000] = y_pol;
+  };
+
+
+  // open outputset file
+  char root_file[256];
+  sprintf(root_file,"%s/%s",dirname,filename);
+  printf("opening %s\n",root_file);
+  TFile * infile = new TFile(root_file,"READ");
+  TTree * twotr = (TTree*) infile->Get("TwoTr");
+
+  char outname[256];
+  sprintf(outname,"redset/Red%s",filename);
+  printf("reducing to data set %s\n",outname);
+  TFile * outfile = new TFile(outname,"RECREATE");
+  TTree * str = new TTree("str","str");
+
+  Int_t ent = twotr->GetEntries();
+  printf(" TwoTr->GetEntries() = %d\n",ent);
+
+  Float_t M12,N12,E12,Phi,Eta,Pt,Z;
+  Int_t spin,TrigBits,rnum,Bunchid7bit;
+  Bool_t kicked_str;
+  Int_t blue_str,yell_str,spin_str;
+  Float_t b_pol_str,y_pol_str;
+  twotr->SetBranchAddress("M12",&M12);
+  twotr->SetBranchAddress("N12",&N12);
+  twotr->SetBranchAddress("E12",&E12);
+  twotr->SetBranchAddress("Z",&Z);
+  twotr->SetBranchAddress("Phi",&Phi);
+  twotr->SetBranchAddress("Eta",&Eta);
+  twotr->SetBranchAddress("Pt",&Pt);
+  twotr->SetBranchAddress("spin",&spin);
+  twotr->SetBranchAddress("TrigBits",&TrigBits);
+  twotr->SetBranchAddress("Rnum",&rnum);
+  twotr->SetBranchAddress("Bunchid7bit",&Bunchid7bit);
+  str->Branch("M12",&M12,"M12/F");
+  str->Branch("N12",&N12,"N12/F");
+  str->Branch("E12",&E12,"E12/F");
+  str->Branch("Z",&Z,"Z/F");
+  str->Branch("Phi",&Phi,"Phi/F");
+  str->Branch("Eta",&Eta,"Eta/F");
+  str->Branch("Pt",&Pt,"Pt/F");
+  str->Branch("spin",&spin_str,"spin/I"); // spinbit; set to 40 if kicked or abort/empty
+  str->Branch("blue",&blue_str,"blue/I");
+  str->Branch("yell",&yell_str,"yell/I");
+  str->Branch("Bunchid7bit",&Bunchid7bit,"Bunchid7bit/I");
+  str->Branch("TrigBits",&TrigBits,"TrigBits/I");
+  str->Branch("runnum",&rnum,"runnum/I");
+  str->Branch("fill",&fill,"fill/I");
+  str->Branch("R3_bbc",&R3_bbc,"R3_bbc/F"); // XEW mean R3
+  str->Branch("R3_zdc",&R3_zdc,"R3_zdc/F");
+  str->Branch("R3_vpd",&R3_vpd,"R3_vpd/F");
+  str->Branch("isConsistent",&isConsistent,"isConsistent/O"); // true if rellum detectors agree
+  str->Branch("b_pol",&b_pol_str); // polarisation; if 0, no polarisation for this fill
+  str->Branch("y_pol",&y_pol_str);
+
+
+  // data reduction loop -----------------------------------
+  Int_t rnum_tmp = 0;
+  Int_t hash; // equivalent to run index - 1 .... (negative if run not in rellum tree)
+  Int_t shift;
+  Int_t Bunchid7bit_shift;
+  for(Int_t i=0; i<ent; i++)
+  {
+    if(!(i%10000)) printf("-- %d/%d\n",i,ent-1);
+    twotr->GetEntry(i);
+
+    // get hash key via linear search through LUT (if the run number has changed)
+    if(rnum != rnum_tmp)
+    {
+      hash = -1; 
+      for(Int_t j=0; j<RUNS; j++)
+      {
+        if(runnum_array[j] == rnum) hash=j;
+      };
+      printf("hash changed to %d for run %d\n",hash,rnum);
+      rnum_tmp = rnum;
+    };
+
+    // get relative luminosities and double check run number is same
+    if(hash>=0)
+    {
+      rtree->GetEntry(hash);
+
+      // shifting test variables --> for shifting the spin pattern wrt bXing distributions
+      // -- positive shift shifts spin pattern to the left, i.e. spin bXing # shifts to the right
+      // -- bunchid7bit_shift is used to fetch appropriate spin from "array_map"; kicked
+      //    status is not shifted, however
+
+      shift = 0;    // redset_0 -- ZERO SHIFTING IS CORRECT FOR RUN13
+      //shift = 1;    // redset_m25
+      //shift = -1;   // redset_p25
+      //shift = 2;    // redset_m50
+      //shift = -2;   // redset_p50
+
+      Bunchid7bit_shift = (Bunchid7bit + shift);
+      if(Bunchid7bit_shift < 0) Bunchid7bit_shift+=120;
+      else Bunchid7bit_shift = Bunchid7bit_shift % 120;
+
+      blue_str = array_map[hash][Bunchid7bit_shift][0];
+      yell_str = array_map[hash][Bunchid7bit_shift][1];
+      kicked_str = array_map[hash][Bunchid7bit][2];
+
+      if(blue_str==-1 && yell_str==-1) spin_str=0;
+      else if(blue_str==-1 && yell_str==1) spin_str=1;
+      else if(blue_str==1 && yell_str==-1) spin_str=2;
+      else if(blue_str==1 && yell_str==1) spin_str=3;
+      else spin_str=40;
+      if(kicked_str) spin_str=40;
+
+      b_pol_str = b_pol_arr[fill-17000];
+      y_pol_str = y_pol_arr[fill-17000];
+
+      if(runnum != rnum)
+      {
+        fprintf(stderr,"ERROR: double-check of run number hashing failed!\n");
+        return;
+      };
+
+      // reduction cut
+
+      if(N12==2 && fabs(M12-0.15)<0.15 && (TrigBits&0xFFF)>0)
+      {
+        if(E12<100 && Pt<10)
+        {
+          str->Fill();
+        };
+      };
+
+      // open cut
+      //if(N12>1) str->Fill();
+    };
+  };
+  
+  if(str->GetEntries() > 0)
+  {
+    str->Write("str");
+    str->Print();
+  }
+  else
+  {
+    printf("STR TREE EMPTY; REMOVING REDSET FILE\n");
+    char rm_redset_file[256];
+    sprintf(rm_redset_file,".! rm %s",outname);
+    gROOT->ProcessLine(rm_redset_file);
+  };
+};

@@ -1,0 +1,5 @@
+#!/bin/bash
+# runs double and single spin analyses, and draws output
+# -- this is for pi0
+root -b -q -l 'Asym3.C('\"pi0\"','\"all\"')'
+root -b -q -l 'DrawThree.C('\"pi0\"')'

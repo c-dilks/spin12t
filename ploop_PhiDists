@@ -1,0 +1,56 @@
+#!/bin/bash
+# uses core looper to run PhiDists2.C on all files, instead of condor
+
+if [ $# -eq 4 ]; then
+  phi=$1
+  eta=$2
+  pt=$3
+  en=$4
+elif [ $# -ge 1 ]; then
+  echo "usage: $0 [phi bins] [eta bins] [pt bins] [en bins]"
+  echo " enter either all four arguments or none to use defaults"
+  exit 1
+else
+  source env_bins.sh
+  phi=$PHI
+  eta=$ETA
+  pt=$PT
+  en=$EN
+fi
+
+# determine number of cores
+ncores=$(grep -c processor /proc/cpuinfo)
+echo ncores=$ncores
+
+echo ""
+echo "binning"
+echo "-------"
+echo "phi=$phi"
+echo "eta=$eta"
+echo "pt=$pt"
+echo "en=$en"
+echo ""
+
+
+
+log="logfiles"
+wd=$(pwd)
+pushd redset > /dev/null
+ls Red*.root > $wd/filelist
+popd > /dev/null
+
+#cat filelist
+cnt=1
+
+while read line; do
+  logg=$(echo $line | sed 's/RedOutputset//g' | sed 's/root/log/g')
+  if [ $cnt -le $ncores ]; then 
+    root -b -q 'PhiDists2.C('\"$line\"')' >& $log/Phi$logg &
+    echo "processing $line"
+    let cnt++
+  else
+    wait
+    cnt=1
+  fi
+done < filelist
+rm filelist

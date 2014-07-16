@@ -1,0 +1,21 @@
+#!/bin/bash
+
+for i in {1..4}; do
+  touch phiset
+  rm phiset
+  ln -s pattern_studies/phiset_yell$i phiset
+  ls -l phiset
+  if [ ! -f phiset/all.root ]; then
+    root -b -q toa_add.C
+  fi
+  root -b -q Asym_sum.C
+  root -b -q Asym_sb_sum.C
+  root -b -q Asym_sy_sum.C
+  root -b -q DrawThree.C
+  cp three.png phiset/
+  mv three.png pattern_studies/three_yell$i.png
+  cp -v spin_sum.root phiset/
+  cp -v spin_sb_sum.root phiset/
+  cp -v spin_sy_sum.root phiset/
+  cp -v DrawThree.C phiset/
+done

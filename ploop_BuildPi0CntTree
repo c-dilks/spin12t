@@ -1,0 +1,26 @@
+#!/bin/bash
+# loops BuildPi0CntTree.C over all redset files (using processor loop)
+# and then hadds them together into pi0cntset/all.root
+
+ncores=$(grep -c processor /proc/cpuinfo)
+echo ncores=$ncores
+cnt=1
+
+mkdir -p pi0cntset
+rm -r pi0cntset
+mkdir -p pi0cntset
+
+for file in $(ls redset/Red*.root); do
+  log=$(echo $file | sed 's/redset\/RedOutputset//g' | sed 's/root/log/g')
+  file=$(echo $file | sed 's/redset\///g')
+  if [ $cnt -le $ncores ]; then
+    root -b -q 'BuildPi0CntTree.C('\"$file\"')' >& logfiles/BuildPi0$log &
+    echo "processing $file"
+    let cnt++
+  else
+    wait
+    cnt=1
+  fi
+done
+
+hadd pi0cntset/{all,pi*}.root

@@ -1,0 +1,17 @@
+#!/bin/bash
+# no argument: queries current isolation cone size
+# one argument: sets isolation cone size to specified argument
+
+pushd ../.. > /dev/null
+
+if [ $# -eq 1 ]; then
+  rm redset
+  rm Output
+  ln -sv redset_$1mr redset
+  ln -sv Output_$1mr Output
+fi
+  
+ls -l redset
+ls -l Output
+
+popd > /dev/null
