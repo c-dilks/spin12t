@@ -1,19 +1,32 @@
 #!/bin/bash
 # runs double and single spin analyses, and draws output
+
+rm output/*.root
+rm output/*.png
+
 root -b -q -l 'Asym3.C('\"sph\"','\"all\"')'
-root -b -q -l 'DrawThree.C('\"sph\"')'
-mv -v spin{,_sph}.root
-mv -v three{,_sph}.png
-mv -v printout{,_sph}.dat
+root -b -q -l 'DrawAsymmetries.C('\"sph\"')'
+mv -v spin.root output/spin_sph.root
+mv -v canv_kindep_0.png output/canv_kindep_z0_sph.png
+mv -v canv_kindep_1.png output/canv_kindep_z1_sph.png
+mv -v canv_z0_Y-SSA.png output/canv_Y-SSA_sph.png
+mv -v canv_z0_B-SSA.png output/canv_B-SSA_sph.png
+mv -v canv_z0_DSA.png output/canv_DSA_sph.png
 
 root -b -q -l 'Asym3.C('\"pi0\"','\"all\"')'
-root -b -q -l 'DrawThree.C('\"pi0\"')'
-mv -v spin{,_pi0}.root
-mv -v three{,_pi0}.png
-mv -v printout{,_pi0}.dat
+root -b -q -l 'DrawAsymmetries.C('\"pi0\"')'
+mv -v spin.root output/spin_pi0.root
+mv -v canv_kindep_0.png output/canv_kindep_z0_pi0.png
+mv -v canv_kindep_1.png output/canv_kindep_z1_pi0.png
+mv -v canv_z0_Y-SSA.png output/canv_Y-SSA_pi0.png
+mv -v canv_z0_B-SSA.png output/canv_B-SSA_pi0.png
+mv -v canv_z0_DSA.png output/canv_DSA_pi0.png
 
 root -b -q -l 'Asym3.C('\"thr\"','\"all\"')'
-root -b -q -l 'DrawThree.C('\"thr\"')'
-mv -v spin{,_thr}.root
-mv -v three{,_thr}.png
-mv -v printout{,_thr}.dat
+root -b -q -l 'DrawAsymmetries.C('\"thr\"')'
+mv -v spin.root output/spin_thr.root
+mv -v canv_kindep_0.png output/canv_kindep_z0_thr.png
+mv -v canv_kindep_1.png output/canv_kindep_z1_thr.png
+mv -v canv_z0_Y-SSA.png output/canv_Y-SSA_thr.png
+mv -v canv_z0_B-SSA.png output/canv_B-SSA_thr.png
+mv -v canv_z0_DSA.png output/canv_DSA_thr.png

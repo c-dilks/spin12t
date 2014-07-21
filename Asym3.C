@@ -1,11 +1,11 @@
 // computes asymmetry between fully summed (i.e. over all runs) phi distributions
 //    (see staszak thesis, eq. 7.5)
 //
-//  - this script does all asymmetries; currently A_LL and A_L for both beams, each classified
+//  - this script does all asymmetries; currently A_TT (+A_sigma) and A_N for both beams, each classified
 //    by an "asymmetry number", defined as the Rellum number used to compute the asymmetry:
-//    -- asym=1 :: A_L yellow
-//    -- asym=2 :: A_L blue
-//    -- asym=3 :: A_LL double helicity asymmetry
+//    -- asym=1 :: A_N yellow
+//    -- asym=2 :: A_N blue
+//    -- asym=3 :: A_TT double helicity asymmetry
 //  
 //  - filter type: defines a filter for the data, useful for consistency checks
 //    -- all: entire data set
@@ -138,8 +138,8 @@ void Asym3(const char * jtype="pi0", const char * filter_type="all",Int_t filter
   Double_t scarat_den[asym_bins][4][eta_bins][pt_bins][en_bins]; // zdc/vpd scaler ratio; weighted by P^2
   Int_t runnum;
   Float_t rellum,polar_b,polar_y;
-  Float_t weight_num,weight_den; // weight for asymmetry (MLM for A_LL)
-  Float_t weight_num_e,weight_den_e; // weight for statistical error (by-product of MLM for A_LL);
+  Float_t weight_num,weight_den; // weight for asymmetry (MLM for A_TT)
+  Float_t weight_num_e,weight_den_e; // weight for statistical error (by-product of MLM for A_TT);
   Float_t weight_num_s,weight_den_s; // weight for systematic error (MLM for R_LL)
   Float_t scarat;
   Int_t fill,pattern;
@@ -366,6 +366,9 @@ void Asym3(const char * jtype="pi0", const char * filter_type="all",Int_t filter
   Double_t RLL_denom[asym_bins][eta_bins][pt_bins][en_bins];
   Double_t RLL_asym[asym_bins][eta_bins][pt_bins][en_bins];
 
+  TF1 * asym_fit[asym_bins][eta_bins][pt_bins][en_bins];
+  char asym_fit_n[asym_bins][eta_bins][pt_bins][en_bins][32];
+
   for(Int_t a=1; a<asym_bins; a++)
   {
     for(Int_t g=0; g<eta_bins; g++)
@@ -389,14 +392,21 @@ void Asym3(const char * jtype="pi0", const char * filter_type="all",Int_t filter
       };
     };
   };
-  char asym_title[asym_bins][16];
-  strcpy(asym_title[1],"A_{L}^{Y}");
-  strcpy(asym_title[2],"A_{L}^{B}");
-  strcpy(asym_title[3],"A_{LL}");
+  char asym_title[asym_bins][20];
+  strcpy(asym_title[1],"Transverse SSA (Y)");
+  strcpy(asym_title[2],"Transverse SSA (B)");
+  strcpy(asym_title[3],"Transverse DSA");
   char asym_title_scarat[asym_bins][16];
   strcpy(asym_title_scarat[1],"R_{L}^{Y}");
   strcpy(asym_title_scarat[2],"R_{L}^{B}");
   strcpy(asym_title_scarat[3],"R_{LL}");
+  char asym_title_kd[2][asym_bins][20]; // for kin dep plots; extra asym bin for A_sigma
+  strcpy(asym_title_kd[0][1],"R (Y)");
+  strcpy(asym_title_kd[0][2],"R (B)");
+  strcpy(asym_title_kd[0][3],"A_{#Sigma}");
+  strcpy(asym_title_kd[1][1],"A_{N}^{Y}");
+  strcpy(asym_title_kd[1][2],"A_{N}^{B}");
+  strcpy(asym_title_kd[1][3],"A_{TT}");
   for(Int_t a=1; a<asym_bins; a++)
   {
     for(Int_t g=0; g<eta_bins; g++)
@@ -548,11 +558,25 @@ void Asym3(const char * jtype="pi0", const char * filter_type="all",Int_t filter
           };
 
           // n.b. for one phi bin, constant fit & error matches the bin & its error
-          asym[a][g][p][e]->Fit("pol0","Q","",phi_low,phi_high);
-          asym_fit[a][g][p][e] = asym[a][g][p][e]->GetFunction("pol0");
+          sprintf(asym_fit_n[a][g][p][e],"asym_fit_a%d_g%d_p%d_e%d",a,g,p,e);
+          if(a==3) 
+          {
+            asym_fit[a][g][p][e] = new TF1(asym_fit_n[a][g][p][e],"[0]+[1]*cos(2*x)",phi_low,phi_high);
+            asym_fit[a][g][p][e]->SetParName(0,"A_{#Sigma}");
+            asym_fit[a][g][p][e]->SetParName(1,"A_{TT}");
+          }
+          else if(a==1 || a==2)
+          {
+            asym_fit[a][g][p][e] = new TF1(asym_fit_n[a][g][p][e],"[0]+[1]*cos(x)",phi_low,phi_high);
+            asym_fit[a][g][p][e]->SetParName(0,"R");
+            if(a==1) asym_fit[a][g][p][e]->SetParName(1,"A_{N}^{Y}");
+            else if(a==2) asym_fit[a][g][p][e]->SetParName(1,"A_{N}^{B}");
+          };
+          asym[a][g][p][e]->Fit(asym_fit[a][g][p][e],"Q","",phi_low,phi_high);
           if(asym_fit[a][g][p][e]!=NULL)
           {
-            asym_value[a][g][p][e]+=asym_fit[a][g][p][e]->GetParameter(0);
+            if(a==3) asym_value[a][g][p][e]+=asym_fit[a][g][p][e]->GetParameter(1);
+            else if(a==1 || a==2) asym_value[a][g][p][e]+=asym_fit[a][g][p][e]->GetParameter(1);
             asym_value_cnt[a][g][p][e]++;
           };
         };
@@ -596,174 +620,199 @@ void Asym3(const char * jtype="pi0", const char * filter_type="all",Int_t filter
 
 
   // kinematic dependence plots
-  TGraphErrors * en_dep[asym_bins][eta_bins][pt_bins]; // en dependent plots, one for each pt bin (statistical errors)
-  TGraphErrors * pt_dep[asym_bins][eta_bins][en_bins]; // pt dependent plots, one for each en bin
-  TGraphErrors * en_sys[asym_bins][eta_bins][pt_bins]; // en dependent plots, one for each pt bin (systematic errors)
-  TGraphErrors * pt_sys[asym_bins][eta_bins][en_bins]; // pt dependent plots, one for each en bin
-  char en_dep_t[asym_bins][eta_bins][pt_bins][256];
-  char pt_dep_t[asym_bins][eta_bins][en_bins][256];
-  char en_sys_t[asym_bins][eta_bins][pt_bins][256];
-  char pt_sys_t[asym_bins][eta_bins][en_bins][256];
-  Int_t en_dep_cnt[asym_bins][eta_bins][pt_bins]; // point counter
-  Int_t pt_dep_cnt[asym_bins][eta_bins][en_bins];
-  Int_t en_sys_cnt[asym_bins][eta_bins][pt_bins];
-  Int_t pt_sys_cnt[asym_bins][eta_bins][en_bins];
-  for(Int_t a=1; a<asym_bins; a++)
+  TGraphErrors * en_dep[2][asym_bins][eta_bins][pt_bins]; // en dependent plots, one for each pt bin (statistical errors)
+  TGraphErrors * pt_dep[2][asym_bins][eta_bins][en_bins]; // pt dependent plots, one for each en bin
+  TGraphErrors * en_sys[2][asym_bins][eta_bins][pt_bins]; // en dependent plots, one for each pt bin (systematic errors)
+  TGraphErrors * pt_sys[2][asym_bins][eta_bins][en_bins]; // pt dependent plots, one for each en bin
+  char en_dep_t[2][asym_bins][eta_bins][pt_bins][256];
+  char pt_dep_t[2][asym_bins][eta_bins][en_bins][256];
+  char en_sys_t[2][asym_bins][eta_bins][pt_bins][256];
+  char pt_sys_t[2][asym_bins][eta_bins][en_bins][256];
+  Int_t en_dep_cnt[2][asym_bins][eta_bins][pt_bins]; // point counter
+  Int_t pt_dep_cnt[2][asym_bins][eta_bins][en_bins];
+  Int_t en_sys_cnt[2][asym_bins][eta_bins][pt_bins];
+  Int_t pt_sys_cnt[2][asym_bins][eta_bins][en_bins];
+  for(Int_t z=0; z<2; z++)
   {
-    for(Int_t g=0; g<eta_bins; g++)
+    for(Int_t a=1; a<asym_bins; a++)
     {
-      for(Int_t p=0; p<pt_bins; p++)
+      for(Int_t g=0; g<eta_bins; g++)
       {
-        en_dep_cnt[a][g][p]=0;
-        en_sys_cnt[a][g][p]=0;
-      };
-      for(Int_t e=0; e<en_bins; e++) 
-      {
-        pt_dep_cnt[a][g][e]=0;
-        pt_sys_cnt[a][g][e]=0;
+        for(Int_t p=0; p<pt_bins; p++)
+        {
+          en_dep_cnt[z][a][g][p]=0;
+          en_sys_cnt[z][a][g][p]=0;
+        };
+        for(Int_t e=0; e<en_bins; e++) 
+        {
+          pt_dep_cnt[z][a][g][e]=0;
+          pt_sys_cnt[z][a][g][e]=0;
+        };
       };
     };
   };
 
-  Double_t val_en[asym_bins][eta_bins][pt_bins][en_bins];     // arrays for en dependent plots, one for each pt bin
-  Double_t err_en[asym_bins][eta_bins][pt_bins][en_bins];     // (statistical error)
-  Double_t sys_en[asym_bins][eta_bins][pt_bins][en_bins];     // (systematic error)
-  Double_t cent_en[asym_bins][eta_bins][pt_bins][en_bins];    // (energy bin center)
-  Double_t width_en[asym_bins][eta_bins][pt_bins][en_bins];   // (energy bin width)
-  Double_t zeroz_en[asym_bins][eta_bins][pt_bins][en_bins];   // array of zeros
 
-  Double_t val_pt[asym_bins][eta_bins][en_bins][pt_bins];     // arrays for pt dependent plots, one
-  Double_t err_pt[asym_bins][eta_bins][en_bins][pt_bins];     // (statistical error)
-  Double_t sys_pt[asym_bins][eta_bins][en_bins][pt_bins];     // (systematic error)
-  Double_t cent_pt[asym_bins][eta_bins][en_bins][pt_bins];    // (pt bin center)
-  Double_t width_pt[asym_bins][eta_bins][en_bins][pt_bins];   // (pt bin width)
-  Double_t zeroz_pt[asym_bins][eta_bins][en_bins][pt_bins];   // array of zeros
+  Double_t val_en[2][asym_bins][eta_bins][pt_bins][en_bins];     // arrays for en dependent plots, one for each pt bin
+  Double_t err_en[2][asym_bins][eta_bins][pt_bins][en_bins];     // (statistical error)
+  Double_t sys_en[2][asym_bins][eta_bins][pt_bins][en_bins];     // (systematic error)
+  Double_t cent_en[2][asym_bins][eta_bins][pt_bins][en_bins];    // (energy bin center)
+  Double_t width_en[2][asym_bins][eta_bins][pt_bins][en_bins];   // (energy bin width)
+  Double_t zeroz_en[2][asym_bins][eta_bins][pt_bins][en_bins];   // array of zeros
+
+  Double_t val_pt[2][asym_bins][eta_bins][en_bins][pt_bins];     // arrays for pt dependent plots, one
+  Double_t err_pt[2][asym_bins][eta_bins][en_bins][pt_bins];     // (statistical error)
+  Double_t sys_pt[2][asym_bins][eta_bins][en_bins][pt_bins];     // (systematic error)
+  Double_t cent_pt[2][asym_bins][eta_bins][en_bins][pt_bins];    // (pt bin center)
+  Double_t width_pt[2][asym_bins][eta_bins][en_bins][pt_bins];   // (pt bin width)
+  Double_t zeroz_pt[2][asym_bins][eta_bins][en_bins][pt_bins];   // array of zeros
 
   // en dependent points for each pt bin
-  for(Int_t a=1; a<asym_bins; a++)
+  for(Int_t z=0; z<2; z++)
   {
-    for(Int_t g=0; g<eta_bins; g++)
+    for(Int_t a=1; a<asym_bins; a++)
     {
-      for(Int_t p=0; p<pt_bins; p++)
+      for(Int_t g=0; g<eta_bins; g++)
       {
-        for(Int_t e=0; e<en_bins; e++)
+        for(Int_t p=0; p<pt_bins; p++)
         {
-          zeroz_en[a][g][p][e]=0;
-          if(asym[a][g][p][e]->GetFunction("pol0"))
+          for(Int_t e=0; e<en_bins; e++)
           {
-            val_en[a][g][p][en_dep_cnt[a][g][p]] = asym[a][g][p][e]->GetFunction("pol0")->GetParameter(0);
-            // error of fit to asym; asym statistical errors set via asym_e
-              err_en[a][g][p][en_dep_cnt[a][g][p]] = asym[a][g][p][e]->GetFunction("pol0")->GetParError(0);
-            // estimated statistical error
-              //err_en[a][g][p][en_dep_cnt[a][g][p]]=1/(0.55*0.55)*1/sqrt(yield[0][g][p][e]+yield[1][g][p][e]+yield[2][g][p][e]+yield[3][g][p][e]);
-            sys_en[a][g][p][en_dep_cnt[a][g][p]] = RLL_asym[a][g][p][e]; // MLM R_LL, R_Lb, R_Ly
-            cent_en[a][g][p][en_dep_cnt[a][g][p]] = en_div[e] + ((en_div[e+1]-en_div[e])/2.0);
-            width_en[a][g][p][en_dep_cnt[a][g][p]] = (en_div[e+1]-en_div[e])/2.0;
-            en_dep_cnt[a][g][p]++;
-          };
-        };
-        // asymmetry vs. en with statistical error bars
-          en_dep[a][g][p] = new TGraphErrors(en_dep_cnt[a][g][p],cent_en[a][g][p],val_en[a][g][p],width_en[a][g][p],err_en[a][g][p]);
-          sprintf(en_dep_t[a][g][p],"%s #pm #sigma %s vs. E_{#gamma#gamma} for p_{T}#in[%.2f,%.2f) and #eta#in[%.2f,%.2f)",asym_title[a],
-                  asym_title[a],pt_div[p],pt_div[p+1],eta_div[g],eta_div[g+1]);
-          
-        // --o--
+            zeroz_en[z][a][g][p][e]=0;
+            if(asym_fit[a][g][p][e]!=NULL)
+            {
+              if(a==3)
+              {
+                val_en[z][a][g][p][en_dep_cnt[z][a][g][p]] = asym_fit[a][g][p][e]->GetParameter(z);
+                err_en[z][a][g][p][en_dep_cnt[z][a][g][p]] = asym_fit[a][g][p][e]->GetParError(z);
+              }
+              else if(a==1 || a==2)
+              {
+                val_en[z][a][g][p][en_dep_cnt[z][a][g][p]] = asym_fit[a][g][p][e]->GetParameter(z);
+                err_en[z][a][g][p][en_dep_cnt[z][a][g][p]] = asym_fit[a][g][p][e]->GetParError(z);
+              };
 
-        // set systematic errors on asymmetry nominal vals:
-          /*
-          for(Int_t e=0; e<en_bins; e++) sys_en[a][g][p][e] = fabs(sys_en[a][g][p][e]);
-          en_sys[a][g][p] = new TGraphErrors(en_dep_cnt[a][g][p],cent_en[a][g][p],val_en[a][g][p],width_en[a][g][p],sys_en[a][g][p]);
-          sprintf(en_sys_t[a][g][p],"%s #pm %s vs. E_{#gamma#gamma} for p_{T}#in[%.2f,%.2f) and #eta#in[%.2f,%.2f)",asym_title[a],
-                  asym_title_scarat[a],pt_div[p],pt_div[p+1],eta_div[g],eta_div[g+1]);
-          */
-        // nominal value is R_L* (scarat asymmetry); error bars currently set to zero
-          en_sys[a][g][p] = new TGraphErrors(en_dep_cnt[a][g][p],cent_en[a][g][p],sys_en[a][g][p],width_en[a][g][p],zeroz_en[a][g][p]);
-          sprintf(en_sys_t[a][g][p],"%s vs. E_{#gamma#gamma} for p_{T}#in[%.2f,%.2f) and #eta#in[%.2f,%.2f)",asym_title_scarat[a],
-                  pt_div[p],pt_div[p+1],eta_div[g],eta_div[g+1]);
-        
-        en_dep[a][g][p]->SetTitle(en_dep_t[a][g][p]);
-        en_sys[a][g][p]->SetTitle(en_sys_t[a][g][p]);
-        en_dep[a][g][p]->GetXaxis()->SetTitle("E_{#gamma#gamma} (GeV)");
-        en_sys[a][g][p]->GetXaxis()->SetTitle("E_{#gamma#gamma} (GeV)");
+              sys_en[z][a][g][p][en_dep_cnt[z][a][g][p]] = RLL_asym[a][g][p][e]; // MLM R_LL, R_Lb, R_Ly
+              cent_en[z][a][g][p][en_dep_cnt[z][a][g][p]] = en_div[e] + ((en_div[e+1]-en_div[e])/2.0);
+              width_en[z][a][g][p][en_dep_cnt[z][a][g][p]] = (en_div[e+1]-en_div[e])/2.0;
+              en_dep_cnt[z][a][g][p]++;
+            };
+          };
+          // asymmetry vs. en with statistical error bars
+            en_dep[z][a][g][p] = new TGraphErrors(en_dep_cnt[z][a][g][p],cent_en[z][a][g][p],val_en[z][a][g][p],width_en[z][a][g][p],err_en[z][a][g][p]);
+            sprintf(en_dep_t[z][a][g][p],"%s #pm #sigma %s vs. E for p_{T}#in[%.2f,%.2f) and #eta#in[%.2f,%.2f)",asym_title_kd[z][a],
+                    asym_title_kd[z][a],pt_div[p],pt_div[p+1],eta_div[g],eta_div[g+1]);
+            
+          // --o--
+
+          // set systematic errors on asymmetry nominal vals:
+            /*
+            for(Int_t e=0; e<en_bins; e++) sys_en[z][a][g][p][e] = fabs(sys_en[z][a][g][p][e]);
+            en_sys[z][a][g][p] = new TGraphErrors(en_dep_cnt[z][a][g][p],cent_en[z][a][g][p],val_en[z][a][g][p],width_en[z][a][g][p],sys_en[z][a][g][p]);
+            sprintf(en_sys_t[z][a][g][p],"%s #pm %s vs. E for p_{T}#in[%.2f,%.2f) and #eta#in[%.2f,%.2f)",asym_title_kd[z][a],
+                    asym_title_scarat[a],pt_div[p],pt_div[p+1],eta_div[g],eta_div[g+1]);
+            */
+          // nominal value is R_L* (scarat asymmetry); error bars currently set to zero
+            en_sys[z][a][g][p] = new TGraphErrors(en_dep_cnt[z][a][g][p],cent_en[z][a][g][p],sys_en[z][a][g][p],width_en[z][a][g][p],zeroz_en[z][a][g][p]);
+            sprintf(en_sys_t[z][a][g][p],"%s vs. E for p_{T}#in[%.2f,%.2f) and #eta#in[%.2f,%.2f)",asym_title_scarat[a],
+                    pt_div[p],pt_div[p+1],eta_div[g],eta_div[g+1]);
+          
+          en_dep[z][a][g][p]->SetTitle(en_dep_t[z][a][g][p]);
+          en_sys[z][a][g][p]->SetTitle(en_sys_t[z][a][g][p]);
+          en_dep[z][a][g][p]->GetXaxis()->SetTitle("E (GeV)");
+          en_sys[z][a][g][p]->GetXaxis()->SetTitle("E (GeV)");
+        };
       };
     };
   };
 
   // pt dependent points for each en bin
-  for(Int_t a=1; a<asym_bins; a++)
+  for(Int_t z=0; z<2; z++)
   {
-    for(Int_t g=0; g<eta_bins; g++)
+    for(Int_t a=1; a<asym_bins; a++)
     {
-      for(Int_t e=0; e<en_bins; e++)
+      for(Int_t g=0; g<eta_bins; g++)
       {
-        for(Int_t p=0; p<pt_bins; p++)
+        for(Int_t e=0; e<en_bins; e++)
         {
-          zeroz_pt[a][g][e][p]=0;
-          if(asym[a][g][p][e]->GetFunction("pol0"))
+          for(Int_t p=0; p<pt_bins; p++)
           {
-            val_pt[a][g][e][pt_dep_cnt[a][g][e]] = asym[a][g][p][e]->GetFunction("pol0")->GetParameter(0);
-            // error of fit to asym; asym statistical errors set via asym_e
-              err_pt[a][g][e][pt_dep_cnt[a][g][e]] = asym[a][g][p][e]->GetFunction("pol0")->GetParError(0);
-            // estimated statistical error
-              //err_pt[a][g][e][pt_dep_cnt[a][g][e]]=1/(0.55*0.55)*1/sqrt(yield[0][g][p][e]+yield[1][g][p][e]+yield[2][g][p][e]+yield[3][g][p][e]);
-            sys_pt[a][g][e][pt_dep_cnt[a][g][e]] = RLL_asym[a][g][p][e]; // MLM R_LL, R_Lb, R_Ly
-            cent_pt[a][g][e][pt_dep_cnt[a][g][e]] = pt_div[p] + ((pt_div[p+1]-pt_div[p])/2.0);
-            width_pt[a][g][e][pt_dep_cnt[a][g][e]] = (pt_div[p+1]-pt_div[p])/2.0;
-            pt_dep_cnt[a][g][e]++;
+            zeroz_pt[z][a][g][e][p]=0;
+            if(asym_fit[a][g][p][e]!=NULL)
+            {
+              if(a==3)
+              {
+                val_pt[z][a][g][e][pt_dep_cnt[z][a][g][e]] = asym_fit[a][g][p][e]->GetParameter(z);
+                err_pt[z][a][g][e][pt_dep_cnt[z][a][g][e]] = asym_fit[a][g][p][e]->GetParError(z);
+              }
+              else if(a==1 || a==2)
+              {
+                val_pt[z][a][g][e][pt_dep_cnt[z][a][g][e]] = asym_fit[a][g][p][e]->GetParameter(z);
+                err_pt[z][a][g][e][pt_dep_cnt[z][a][g][e]] = asym_fit[a][g][p][e]->GetParError(z);
+              };
+
+              sys_pt[z][a][g][e][pt_dep_cnt[z][a][g][e]] = RLL_asym[a][g][p][e]; // MLM R_LL, R_Lb, R_Ly
+              cent_pt[z][a][g][e][pt_dep_cnt[z][a][g][e]] = pt_div[p] + ((pt_div[p+1]-pt_div[p])/2.0);
+              width_pt[z][a][g][e][pt_dep_cnt[z][a][g][e]] = (pt_div[p+1]-pt_div[p])/2.0;
+              pt_dep_cnt[z][a][g][e]++;
+            };
           };
+          // asymmetry vs. pt with statistical error bars
+            pt_dep[z][a][g][e] = new TGraphErrors(pt_dep_cnt[z][a][g][e],cent_pt[z][a][g][e],val_pt[z][a][g][e],width_pt[z][a][g][e],err_pt[z][a][g][e]);
+            sprintf(pt_dep_t[z][a][g][e],"%s #pm #sigma %s vs. p_{T} for E#in[%.2f,%.2f) and #eta#in[%.2f,%.2f)",asym_title_kd[z][a],
+                    asym_title_kd[z][a],en_div[e],en_div[e+1],eta_div[g],eta_div[g+1]);
+
+          // --o--
+
+          // set systematic errors on asymmetry nominal vals:
+            /*
+            for(Int_t p=0; p<pt_bins; p++) sys_pt[z][a][g][e][p] = fabs(sys_pt[z][a][g][e][p]);
+            pt_sys[z][a][g][e] = new TGraphErrors(pt_dep_cnt[z][a][g][e],cent_pt[z][a][g][e],val_pt[z][a][g][e],width_pt[z][a][g][e],sys_pt[z][a][g][e]);
+            sprintf(pt_sys_t[z][a][g][e],"%s #pm %s vs. p_{T} for E#in[%.2f,%.2f) and #eta#in[%.2f,%.2f)",asym_title_kd[z][a],
+                    asym_title_scarat[a],en_div[e],en_div[e+1],eta_div[g],eta_div[g+1]);
+            */
+          // nominal value is R_L* (scarat asymmetry); error bars currently set to zero
+            pt_sys[z][a][g][e] = new TGraphErrors(pt_dep_cnt[z][a][g][e],cent_pt[z][a][g][e],sys_pt[z][a][g][e],width_pt[z][a][g][e],zeroz_pt[z][a][g][e]);
+            sprintf(pt_sys_t[z][a][g][e],"%s vs. p_{T} for E#in[%.2f,%.2f) and #eta#in[%.2f,%.2f)",asym_title_scarat[a],
+                    en_div[e],en_div[e+1],eta_div[g],eta_div[g+1]);
+
+          pt_dep[z][a][g][e]->SetTitle(pt_dep_t[z][a][g][e]);
+          pt_sys[z][a][g][e]->SetTitle(pt_sys_t[z][a][g][e]);
+          pt_dep[z][a][g][e]->GetXaxis()->SetTitle("p_{T} (GeV)");
+          pt_sys[z][a][g][e]->GetXaxis()->SetTitle("p_{T} (GeV)");
         };
-        // asymmetry vs. pt with statistical error bars
-          pt_dep[a][g][e] = new TGraphErrors(pt_dep_cnt[a][g][e],cent_pt[a][g][e],val_pt[a][g][e],width_pt[a][g][e],err_pt[a][g][e]);
-          sprintf(pt_dep_t[a][g][e],"%s #pm #sigma %s vs. p_{T} for E_{#gamma#gamma}#in[%.2f,%.2f) and #eta#in[%.2f,%.2f)",asym_title[a],
-                  asym_title[a],en_div[e],en_div[e+1],eta_div[g],eta_div[g+1]);
-
-        // --o--
-
-        // set systematic errors on asymmetry nominal vals:
-          /*
-          for(Int_t p=0; p<pt_bins; p++) sys_pt[a][g][e][p] = fabs(sys_pt[a][g][e][p]);
-          pt_sys[a][g][e] = new TGraphErrors(pt_dep_cnt[a][g][e],cent_pt[a][g][e],val_pt[a][g][e],width_pt[a][g][e],sys_pt[a][g][e]);
-          sprintf(pt_sys_t[a][g][e],"%s #pm %s vs. p_{T} for E_{#gamma#gamma}#in[%.2f,%.2f) and #eta#in[%.2f,%.2f)",asym_title[a],
-                  asym_title_scarat[a],en_div[e],en_div[e+1],eta_div[g],eta_div[g+1]);
-          */
-        // nominal value is R_L* (scarat asymmetry); error bars currently set to zero
-          pt_sys[a][g][e] = new TGraphErrors(pt_dep_cnt[a][g][e],cent_pt[a][g][e],sys_pt[a][g][e],width_pt[a][g][e],zeroz_pt[a][g][e]);
-          sprintf(pt_sys_t[a][g][e],"%s vs. p_{T} for E_{#gamma#gamma}#in[%.2f,%.2f) and #eta#in[%.2f,%.2f)",asym_title_scarat[a],
-                  en_div[e],en_div[e+1],eta_div[g],eta_div[g+1]);
-
-        pt_dep[a][g][e]->SetTitle(pt_dep_t[a][g][e]);
-        pt_sys[a][g][e]->SetTitle(pt_sys_t[a][g][e]);
-        pt_dep[a][g][e]->GetXaxis()->SetTitle("p_{T} (GeV)");
-        pt_sys[a][g][e]->GetXaxis()->SetTitle("p_{T} (GeV)");
       };
     };
   };
 
-  for(Int_t a=1; a<asym_bins; a++)
+  for(Int_t z=0; z<2; z++)
   {
-    for(Int_t g=0; g<eta_bins; g++)
+    for(Int_t a=1; a<asym_bins; a++)
     {
-      for(Int_t p=0; p<pt_bins; p++)
+      for(Int_t g=0; g<eta_bins; g++)
       {
-        en_dep[a][g][p]->GetYaxis()->SetTitle(asym_title[a]);
-        en_dep[a][g][p]->SetMarkerStyle(kFullCircle);
-        en_dep[a][g][p]->SetMarkerColor(kRed);
-        en_dep[a][g][p]->GetYaxis()->SetTitleOffset(1.5);
-        en_sys[a][g][p]->GetYaxis()->SetTitle(asym_title[a]);
-        en_sys[a][g][p]->SetMarkerStyle(kFullCircle);
-        en_sys[a][g][p]->SetMarkerColor(kRed);
-        en_sys[a][g][p]->GetYaxis()->SetTitleOffset(1.5);
-      };
-      for(Int_t e=0; e<en_bins; e++)
-      {
-        pt_dep[a][g][e]->GetYaxis()->SetTitle(asym_title[a]);
-        pt_dep[a][g][e]->SetMarkerStyle(kFullCircle);
-        pt_dep[a][g][e]->SetMarkerColor(kRed);
-        pt_dep[a][g][e]->GetYaxis()->SetTitleOffset(1.5);
-        pt_sys[a][g][e]->GetYaxis()->SetTitle(asym_title[a]);
-        pt_sys[a][g][e]->SetMarkerStyle(kFullCircle);
-        pt_sys[a][g][e]->SetMarkerColor(kRed);
-        pt_sys[a][g][e]->GetYaxis()->SetTitleOffset(1.5);
+        for(Int_t p=0; p<pt_bins; p++)
+        {
+          en_dep[z][a][g][p]->GetYaxis()->SetTitle(asym_title_kd[z][a]);
+          en_dep[z][a][g][p]->SetMarkerStyle(kFullCircle);
+          en_dep[z][a][g][p]->SetMarkerColor(kRed);
+          en_dep[z][a][g][p]->GetYaxis()->SetTitleOffset(1.5);
+          en_sys[z][a][g][p]->GetYaxis()->SetTitle(asym_title_kd[z][a]);
+          en_sys[z][a][g][p]->SetMarkerStyle(kFullCircle);
+          en_sys[z][a][g][p]->SetMarkerColor(kRed);
+          en_sys[z][a][g][p]->GetYaxis()->SetTitleOffset(1.5);
+        };
+        for(Int_t e=0; e<en_bins; e++)
+        {
+          pt_dep[z][a][g][e]->GetYaxis()->SetTitle(asym_title_kd[z][a]);
+          pt_dep[z][a][g][e]->SetMarkerStyle(kFullCircle);
+          pt_dep[z][a][g][e]->SetMarkerColor(kRed);
+          pt_dep[z][a][g][e]->GetYaxis()->SetTitleOffset(1.5);
+          pt_sys[z][a][g][e]->GetYaxis()->SetTitle(asym_title_kd[z][a]);
+          pt_sys[z][a][g][e]->SetMarkerStyle(kFullCircle);
+          pt_sys[z][a][g][e]->SetMarkerColor(kRed);
+          pt_sys[z][a][g][e]->GetYaxis()->SetTitleOffset(1.5);
+        };
       };
     };
   };
@@ -772,57 +821,85 @@ void Asym3(const char * jtype="pi0", const char * filter_type="all",Int_t filter
   // write phi dists
   printf("writing spin.root...\n");
   TFile * outfile = new TFile("spin.root","RECREATE");
-  outfile->mkdir("A_LL");
-  outfile->mkdir("A_L_blue");
-  outfile->mkdir("A_L_yellow");
-  char en_dep_n[asym_bins][eta_bins][pt_bins][32];
-  char pt_dep_n[asym_bins][eta_bins][en_bins][32];
-  char en_sys_n[asym_bins][eta_bins][pt_bins][32];
-  char pt_sys_n[asym_bins][eta_bins][en_bins][32];
-  for(Int_t a=1; a<asym_bins; a++)
+  outfile->mkdir("A_Sigma");
+  outfile->mkdir("R_blue");
+  outfile->mkdir("R_yellow");
+  outfile->mkdir("A_TT");
+  outfile->mkdir("A_N_blue");
+  outfile->mkdir("A_N_yellow");
+  char en_dep_n[2][asym_bins][eta_bins][pt_bins][32];
+  char pt_dep_n[2][asym_bins][eta_bins][en_bins][32];
+  char en_sys_n[2][asym_bins][eta_bins][pt_bins][32];
+  char pt_sys_n[2][asym_bins][eta_bins][en_bins][32];
+  for(Int_t z=0; z<2; z++)
   {
-    if(a==3) outfile->cd("/A_LL");
-    else if(a==1) outfile->cd("/A_L_yellow");
-    else if(a==2) outfile->cd("/A_L_blue");
-    for(Int_t g=0; g<eta_bins; g++)
+    for(Int_t a=1; a<asym_bins; a++)
     {
-      for(Int_t p=0; p<pt_bins; p++)
+      if(z==0)
       {
-        sprintf(en_dep_n[a][g][p],"en_dep_a%d_g%d_p%d",a,g,p);
-        en_dep[a][g][p]->Write(en_dep_n[a][g][p]);
-      };
-      for(Int_t e=0; e<en_bins; e++)
+        if(a==3) outfile->cd("/A_Sigma");
+        else if(a==1) outfile->cd("/R_yellow");
+        else if(a==2) outfile->cd("/R_blue");
+      }
+      else if(z==1)
       {
-        sprintf(pt_dep_n[a][g][e],"pt_dep_a%d_g%d_e%d",a,g,e);
-        pt_dep[a][g][e]->Write(pt_dep_n[a][g][e]);
+        if(a==3) outfile->cd("/A_TT");
+        else if(a==1) outfile->cd("/A_N_yellow");
+        else if(a==2) outfile->cd("/A_N_blue");
+      }:
+      for(Int_t g=0; g<eta_bins; g++)
+      {
+        for(Int_t p=0; p<pt_bins; p++)
+        {
+          sprintf(en_dep_n[z][a][g][p],"en_dep_z%d_a%d_g%d_p%d",z,a,g,p);
+          en_dep[z][a][g][p]->Write(en_dep_n[z][a][g][p]);
+        };
+        for(Int_t e=0; e<en_bins; e++)
+        {
+          sprintf(pt_dep_n[z][a][g][e],"pt_dep_z%d_a%d_g%d_e%d",z,a,g,e);
+          pt_dep[z][a][g][e]->Write(pt_dep_n[z][a][g][e]);
+        };
       };
     };
   };
-  for(Int_t a=1; a<asym_bins; a++)
+  for(Int_t z=0; z<2; z++)
   {
-    if(a==3) outfile->cd("/A_LL");
-    else if(a==1) outfile->cd("/A_L_yellow");
-    else if(a==2) outfile->cd("/A_L_blue");
-    for(Int_t g=0; g<eta_bins; g++)
+    for(Int_t a=1; a<asym_bins; a++)
     {
-      for(Int_t p=0; p<pt_bins; p++)
+      if(z==0)
       {
-        sprintf(en_sys_n[a][g][p],"en_sys_a%d_g%d_p%d",a,g,p);
-        en_sys[a][g][p]->Write(en_sys_n[a][g][p]);
-      };
-      for(Int_t e=0; e<en_bins; e++)
+        if(a==3) outfile->cd("/A_Sigma");
+        else if(a==1) outfile->cd("/R_yellow");
+        else if(a==2) outfile->cd("/R_blue");
+      }
+      else if(z==1)
       {
-        sprintf(pt_sys_n[a][g][e],"pt_sys_a%d_g%d_e%d",a,g,e);
-        pt_sys[a][g][e]->Write(pt_sys_n[a][g][e]);
+        if(a==3) outfile->cd("/A_TT");
+        else if(a==1) outfile->cd("/A_N_yellow");
+        else if(a==2) outfile->cd("/A_N_blue");
+      }:
+      for(Int_t g=0; g<eta_bins; g++)
+      {
+        for(Int_t p=0; p<pt_bins; p++)
+        {
+          sprintf(en_sys_n[z][a][g][p],"en_sys_z%d_a%d_g%d_p%d",z,a,g,p);
+          en_sys[z][a][g][p]->Write(en_sys_n[z][a][g][p]);
+        };
+        for(Int_t e=0; e<en_bins; e++)
+        {
+          sprintf(pt_sys_n[z][a][g][e],"pt_sys_z%d_a%d_g%d_e%d",z,a,g,e);
+          pt_sys[z][a][g][e]->Write(pt_sys_n[z][a][g][e]);
+        };
       };
     };
   };
 
+  // write phi_dist_num/den and asym to both shift and amplitude asymmetry directories
   for(Int_t a=1; a<asym_bins; a++)
   {
-    if(a==3) outfile->cd("/A_LL");
-    else if(a==1) outfile->cd("/A_L_yellow");
-    else if(a==2) outfile->cd("/A_L_blue");
+    if(a==3) outfile->cd("/A_TT");
+    else if(a==1) outfile->cd("/A_N_yellow");
+    else if(a==2) outfile->cd("/A_N_blue");
     for(Int_t g=0; g<eta_bins; g++)
     {
       for(Int_t p=0; p<pt_bins; p++)
@@ -840,9 +917,45 @@ void Asym3(const char * jtype="pi0", const char * filter_type="all",Int_t filter
   };
   for(Int_t a=1; a<asym_bins; a++)
   {
-    if(a==3) outfile->cd("/A_LL");
-    else if(a==1) outfile->cd("/A_L_yellow");
-    else if(a==2) outfile->cd("/A_L_blue");
+    if(a==3) outfile->cd("/A_TT");
+    else if(a==1) outfile->cd("/A_N_yellow");
+    else if(a==2) outfile->cd("/A_N_blue");
+    for(Int_t g=0; g<eta_bins; g++)
+    {
+      for(Int_t p=0; p<pt_bins; p++)
+      {
+        for(Int_t e=0; e<en_bins; e++)
+        {
+          asym[a][g][p][e]->Write(asym_n[a][g][p][e]);
+        };
+      };
+    };
+  };
+  for(Int_t a=1; a<asym_bins; a++)
+  {
+    if(a==3) outfile->cd("/A_Sigma");
+    else if(a==1) outfile->cd("/R_yellow");
+    else if(a==2) outfile->cd("/R_blue");
+    for(Int_t g=0; g<eta_bins; g++)
+    {
+      for(Int_t p=0; p<pt_bins; p++)
+      {
+        for(Int_t e=0; e<en_bins; e++)
+        {
+          for(Int_t s=0; s<4; s++)
+          {
+            phi_dist_num[a][s][g][p][e]->Write(phi_dist_num_n[a][s][g][p][e]);
+            phi_dist_den[a][s][g][p][e]->Write(phi_dist_den_n[a][s][g][p][e]);
+          };
+        };
+      };
+    };
+  };
+  for(Int_t a=1; a<asym_bins; a++)
+  {
+    if(a==3) outfile->cd("/A_Sigma");
+    else if(a==1) outfile->cd("/R_yellow");
+    else if(a==2) outfile->cd("/R_blue");
     for(Int_t g=0; g<eta_bins; g++)
     {
       for(Int_t p=0; p<pt_bins; p++)
