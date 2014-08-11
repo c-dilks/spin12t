@@ -1,0 +1,23 @@
+#!/bin/bash
+# computes total luminosity for runs listed in RUNLIST
+
+if [ $# -lt 1 ]; then
+  lumifile="lum_perrun_FMSJP2.txt"
+elif [ $# -eq 1 ]; then
+  lumifile="$1"
+else
+  echo "Usage: $0 [lumi file]"
+  exit 1
+fi
+
+lumi=0
+while read line; do
+  str=$(grep -r ^$line $lumifile)
+  if [ -n "$str" ]; then
+    lumitmp=$(echo $str | awk '{print $5}' | sed -e 's/e/\*10\^/g')
+    echo $lumi $lumitmp
+    #lumitmp="1"
+    lumi=$(echo "$lumi + $lumitmp" | bc -l)
+  fi
+done < RUNLIST
+echo "integrated luminosity: $lumi pb^-1"
